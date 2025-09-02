@@ -1,0 +1,51 @@
+# 忽略Python编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 忽略虚拟环境
+venv/
+ENV/
+
+# 忽略操作系统文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 忽略日志文件
+*.log
+logs/
+
+# 忽略缓存文件
+.cache/
+.pytest_cache/
+
+# 忽略构建文件
+build/
+dist/
+*.egg-info/
+
+# 忽略环境变量文件
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 忽略语音文件（可选，如果不需要提交生成的语音）
+*.mp3
+
+# 忽略IDE配置文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 忽略Docker相关临时文件
+.dockerignore
+Dockerfile~
