@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edge-TTS 语音试听页面</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+            justify-content: center;
+            align-items: center;
+        }
+        input[type="text"] {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            flex: 1;
+            min-width: 300px;
+            max-width: 500px;
+        }
+        select {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+        }
+        .voice-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .voice-card {
+            background-color: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .voice-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .voice-name {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .voice-details {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .audio-player {
+            width: 100%;
+            margin-top: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 30px;
+            gap: 10px;
+        }
+        .pagination button {
+            padding: 8px 16px;
+            background-color: #f1f1f1;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+        .pagination button:hover:not(:disabled) {
+            background-color: #ddd;
+        }
+        .pagination button.active {
+            background-color: #4CAF50;
+            color: white;
+            border: 1px solid #4CAF50;
+        }
+        .language-filter {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+        .language-chip {
+            padding: 5px 15px;
+            background-color: #e0e0e0;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        .language-chip:hover {
+            background-color: #d0d0d0;
+        }
+        .language-chip.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .play-all {
+            background-color: #2196F3;
+        }
+        .play-all:hover {
+            background-color: #0b7dda;
+        }
+        .stop-all {
+            background-color: #f44336;
+        }
+        .stop-all:hover {
+            background-color: #da190b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Edge-TTS 语音试听页面</h1>
+        
+        <div class="controls">
+            <input type="text" id="search-input" placeholder="搜索语音...">
+            <select id="sort-select">
+                <option value="name">按名称排序</option>
+                <option value="language">按语言排序</option>
+            </select>
+            <button id="play-all-btn" class="play-all">播放所有</button>
+            <button id="stop-all-btn" class="stop-all">停止所有</button>
+        </div>
+        
+        <div class="language-filter" id="language-filter">
+            <div class="language-chip active" data-language="all">全部</div>
+        </div>
+        
+        <div class="loading" id="loading">
+            <p>正在加载语音列表...</p>
+        </div>
+        
+        <div class="voice-grid" id="voice-grid">
+            <!-- 语音卡片将通过JavaScript动态生成 -->
+        </div>
+        
+        <div class="pagination" id="pagination">
+            <!-- 分页按钮将通过JavaScript动态生成 -->
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let voices = [];
+        let filteredVoices = [];
+        let currentPage = 1;
+        const voicesPerPage = 24;
+        let activeLanguages = ['all'];
+        let searchTerm = '';
+        let sortBy = 'name';
+        let activeAudio = null;
+
+        // DOM元素
+        const searchInput = document.getElementById('search-input');
+        const sortSelect = document.getElementById('sort-select');
+        const voiceGrid = document.getElementById('voice-grid');
+        const pagination = document.getElementById('pagination');
+        const loading = document.getElementById('loading');
+        const languageFilter = document.getElementById('language-filter');
+        const playAllBtn = document.getElementById('play-all-btn');
+        const stopAllBtn = document.getElementById('stop-all-btn');
+
+        // 初始化
+        async function init() {
+            try {
+                // 从文件中加载语音列表
+                const response = await fetch('/api/voice_list');
+                voices = await response.json();
+                
+                // 提取所有语言代码
+                const languages = new Set();
+                voices.forEach(voice => {
+                    const langCode = voice.split('-')[0];
+                    languages.add(langCode);
+                });
+                
+                // 创建语言筛选器
+                languages.forEach(lang => {
+                    const chip = document.createElement('div');
+                    chip.className = 'language-chip';
+                    chip.dataset.language = lang;
+                    chip.textContent = lang.toUpperCase();
+                    chip.addEventListener('click', () => toggleLanguageFilter(lang));
+                    languageFilter.appendChild(chip);
+                });
+                
+                // 过滤并显示语音
+                filterAndDisplayVoices();
+                
+                // 隐藏加载状态
+                loading.style.display = 'none';
+            } catch (error) {
+                console.error('加载语音列表失败:', error);
+                loading.innerHTML = '<p>加载语音列表失败，请刷新页面重试</p>';
+            }
+        }
+
+        // 过滤并显示语音
+        function filterAndDisplayVoices() {
+            // 应用搜索过滤
+            filteredVoices = voices.filter(voice => {
+                const matchesSearch = voice.toLowerCase().includes(searchTerm.toLowerCase());
+                
+                // 应用语言过滤
+                if (activeLanguages.includes('all')) {
+                    return matchesSearch;
+                }
+                
+                const voiceLang = voice.split('-')[0];
+                return matchesSearch && activeLanguages.includes(voiceLang);
+            });
+            
+            // 排序
+            sortVoices();
+            
+            // 计算总页数
+            const totalPages = Math.ceil(filteredVoices.length / voicesPerPage);
+            
+            // 确保当前页码有效
+            currentPage = Math.max(1, Math.min(currentPage, totalPages));
+            
+            // 显示当前页的语音
+            displayCurrentPageVoices();
+            
+            // 生成分页按钮
+            generatePaginationButtons(totalPages);
+        }
+
+        // 排序语音
+        function sortVoices() {
+            if (sortBy === 'name') {
+                filteredVoices.sort((a, b) => a.localeCompare(b));
+            } else if (sortBy === 'language') {
+                filteredVoices.sort((a, b) => {
+                    const langA = a.split('-')[0];
+                    const langB = b.split('-')[0];
+                    return langA.localeCompare(langB) || a.localeCompare(b);
+                });
+            }
+        }
+
+        // 显示当前页的语音
+        function displayCurrentPageVoices() {
+            voiceGrid.innerHTML = '';
+            
+            const startIndex = (currentPage - 1) * voicesPerPage;
+            const endIndex = Math.min(startIndex + voicesPerPage, filteredVoices.length);
+            
+            const currentVoices = filteredVoices.slice(startIndex, endIndex);
+            
+            currentVoices.forEach(voice => {
+                const voiceCard = document.createElement('div');
+                voiceCard.className = 'voice-card';
+                
+                // 解析语音信息
+                const parts = voice.split('-');
+                const language = parts[0];
+                const region = parts[1];
+                const name = parts.slice(2).join('-').replace('Neural', '');
+                
+                voiceCard.innerHTML = `
+                    <div class="voice-name">
+                        <span>${voice}</span>
+                        <span class="language-tag">${language}</span>
+                    </div>
+                    <div class="voice-details">
+                        <div>语言: ${language}</div>
+                        <div>地区: ${region}</div>
+                        <div>名称: ${name}</div>
+                    </div>
+                    <audio class="audio-player" controls>
+                        <source src="/api/voice_sample?voice=${encodeURIComponent(voice)}" type="audio/mpeg">
+                        您的浏览器不支持音频播放
+                    </audio>
+                `;
+                
+                // 添加音频播放事件处理
+                const audioElement = voiceCard.querySelector('audio');
+                audioElement.addEventListener('play', () => {
+                    // 停止其他正在播放的音频
+                    if (activeAudio && activeAudio !== audioElement) {
+                        activeAudio.pause();
+                    }
+                    activeAudio = audioElement;
+                });
+                
+                audioElement.addEventListener('ended', () => {
+                    activeAudio = null;
+                });
+                
+                voiceGrid.appendChild(voiceCard);
+            });
+        }
+
+        // 生成分页按钮
+        function generatePaginationButtons(totalPages) {
+            pagination.innerHTML = '';
+            
+            const maxButtons = 10;
+            let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+            let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+            
+            // 调整起始页码以确保显示足够的按钮
+            if (endPage - startPage + 1 < maxButtons) {
+                startPage = Math.max(1, endPage - maxButtons + 1);
+            }
+            
+            // 添加第一页按钮
+            if (startPage > 1) {
+                addPageButton(1);
+                if (startPage > 2) {
+                    addEllipsis();
+                }
+            }
+            
+            // 添加页码按钮
+            for (let i = startPage; i <= endPage; i++) {
+                addPageButton(i);
+            }
+            
+            // 添加最后一页按钮
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    addEllipsis();
+                }
+                addPageButton(totalPages);
+            }
+        }
+
+        // 添加页码按钮
+        function addPageButton(pageNum) {
+            const button = document.createElement('button');
+            button.textContent = pageNum;
+            
+            if (pageNum === currentPage) {
+                button.classList.add('active');
+            }
+            
+            button.addEventListener('click', () => {
+                currentPage = pageNum;
+                filterAndDisplayVoices();
+            });
+            
+            pagination.appendChild(button);
+        }
+
+        // 添加省略号
+        function addEllipsis() {
+            const ellipsis = document.createElement('span');
+            ellipsis.textContent = '...';
+            ellipsis.style.padding = '0 10px';
+            pagination.appendChild(ellipsis);
+        }
+
+        // 切换语言筛选器
+        function toggleLanguageFilter(language) {
+            // 移除所有活动状态
+            document.querySelectorAll('.language-chip').forEach(chip => {
+                chip.classList.remove('active');
+            });
+            
+            if (language === 'all') {
+                activeLanguages = ['all'];
+            } else {
+                activeLanguages = [language];
+            }
+            
+            // 添加当前活动状态
+            document.querySelector(`.language-chip[data-language="${language}"]`).classList.add('active');
+            
+            // 重置页码并重新显示
+            currentPage = 1;
+            filterAndDisplayVoices();
+        }
+
+        // 播放所有语音
+        function playAll() {
+            const audioElements = document.querySelectorAll('audio');
+            if (audioElements.length > 0) {
+                audioElements[0].play();
+                
+                // 设置自动播放下一个
+                let currentIndex = 0;
+                audioElements.forEach((audio, index) => {
+                    audio.addEventListener('ended', () => {
+                        if (index < audioElements.length - 1) {
+                            audioElements[index + 1].play();
+                        }
+                    });
+                });
+            }
+        }
+
+        // 停止所有语音
+        function stopAll() {
+            const audioElements = document.querySelectorAll('audio');
+            audioElements.forEach(audio => {
+                audio.pause();
+                audio.currentTime = 0;
+            });
+            activeAudio = null;
+        }
+
+        // 事件监听
+        searchInput.addEventListener('input', (e) => {
+            searchTerm = e.target.value;
+            currentPage = 1;
+            filterAndDisplayVoices();
+        });
+        
+        sortSelect.addEventListener('change', (e) => {
+            sortBy = e.target.value;
+            filterAndDisplayVoices();
+        });
+        
+        playAllBtn.addEventListener('click', playAll);
+        stopAllBtn.addEventListener('click', stopAll);
+
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

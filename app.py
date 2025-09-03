@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file, abort
+from flask import Flask, request, jsonify, send_file, abort, render_template
 import os
 from tts_service import TTSService
 from flask import Response
@@ -42,8 +42,8 @@ def log_request_middleware():
 # 身份验证中间件
 def auth_middleware():
     """身份验证中间件，用于保护敏感接口"""
-    # 允许访问首页和健康检查接口
-    if request.path in ['/', '/api/health']:
+    # 允许访问首页、健康检查接口和必要的静态资源
+    if request.path in ['/','/api/voice_list', '/api/voice_sample', '/favicon.ico']:
         return
     
     # IP白名单验证
@@ -114,28 +114,10 @@ def internal_server_error(error):
 
 
 @app.route('/')
-def home():
-    """首页接口"""
-    logger.info("访问首页")
-    return jsonify({
-        "message": "欢迎使用Edge-TTS API服务",
-        "version": "1.0",
-        "endpoints": [
-            "/api/tts - 生成语音",
-            "/api/voices - 获取可用语音列表",
-            "/api/health - 健康检查"
-        ]
-    })
-
-
-@app.route('/api/health')
-def health_check():
-    """健康检查接口"""
-    logger.info("健康检查请求")
-    return jsonify({
-        "status": "healthy",
-        "message": "服务运行正常"
-    })
+def voice_demo():
+    """语音试听页面"""
+    logger.info("访问语音试听页面")
+    return render_template('voice_demo.html')
 
 
 @app.route('/api/voices', methods=['GET'])
@@ -318,6 +300,89 @@ def generate_tts_stream():
             "message": f"处理请求时发生错误: {str(e)}"
         }), 500
 
+
+@app.route('/api/voice_list')
+def get_voice_list():
+    """获取语音列表接口
+    
+    返回:
+        JSON: 从voice_list.txt文件中读取的语音列表
+    """
+    try:
+        # 使用相对路径，确保在容器内也能正确读取文件
+        voice_list_path = 'voice_list.txt'
+        # 如果相对路径不存在，尝试使用环境变量或备用路径
+        if not os.path.exists(voice_list_path):
+            # 检查是否有环境变量设置的路径
+            voice_list_path = os.environ.get('VOICE_LIST_PATH', 'voice_list.txt')
+            
+            if not os.path.exists(voice_list_path):
+                logger.error(f"语音列表文件不存在: {voice_list_path}")
+                # 返回预设的示例语音列表，确保前端页面能够正常显示
+                sample_voices = [
+                    'zh-CN-XiaomoNeural', 'zh-CN-XiaoxueNeural', 
+                    'zh-CN-XiaorouNeural', 'zh-CN-YunxiNeural',
+                    'en-US-JennyNeural', 'en-US-BrianNeural'
+                ]
+                return jsonify(sample_voices)
+        
+        with open(voice_list_path, 'r', encoding='utf-8') as f:
+            voices = [line.strip() for line in f if line.strip()]
+        
+        logger.info(f"成功读取语音列表，共 {len(voices)} 个语音模型")
+        return jsonify(voices)
+    except Exception as e:
+        logger.error(f"读取语音列表失败: {str(e)}")
+        return jsonify([]), 500
+
+@app.route('/api/voice_sample')
+def get_voice_sample():
+    """获取语音样本接口
+    
+    参数:
+        voice (str): 语音模型名称
+    
+    返回:
+        audio/mpeg: 语音样本文件
+    """
+    try:
+        # 获取语音模型参数
+        voice = request.args.get('voice')
+        if not voice:
+            logger.warning("语音样本请求缺少voice参数")
+            abort(400, description="缺少voice参数")
+        
+        # 定义一个示例文本用于生成语音样本
+        sample_text = "这是一个语音样本，用于测试Edge-TTS的声音效果。"
+        
+        # 检查是否是中文语音，使用不同的示例文本
+        if voice.startswith('zh-'):
+            sample_text = "这是一个语音样本，用于测试Edge-TTS的声音效果。"
+        elif voice.startswith('en-'):
+            sample_text = "This is a voice sample for testing Edge-TTS sound effects."
+        else:
+            # 对于其他语言，使用英文作为默认
+            sample_text = "This is a voice sample for testing Edge-TTS sound effects."
+        
+        logger.info(f"生成语音样本请求: 语音模型={voice}")
+        
+        # 使用tts_service生成语音样本
+        result = tts_service.generate_speech_sync(sample_text, voice)
+        
+        if result['success']:
+            logger.info(f"语音样本生成成功: {result['file_name']}")
+            # 直接返回语音文件
+            return send_file(
+                result['file_path'],
+                mimetype='audio/mpeg',
+                as_attachment=False
+            )
+        else:
+            logger.error(f"语音样本生成失败: {result['message']}")
+            abort(500, description=f"生成语音样本失败: {result['message']}")
+    except Exception as e:
+        logger.error(f"处理语音样本请求时发生错误: {str(e)}")
+        abort(500, description=f"处理请求时发生错误: {str(e)}")
 
 if __name__ == "__main__":
     # 在开发环境中运行Flask应用

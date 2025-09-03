@@ -10,12 +10,15 @@ COPY app.py .
 COPY tts_service.py .
 COPY utils1.py .
 COPY logger_config.py .
+COPY voice_samples .
+COPY voice_list.txt .
+COPY templates/ ./templates/
 
 # 安装依赖包
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 创建语音列表目录
-RUN mkdir -p "语音列表"
+RUN mkdir -p "语音列表" && mkdir -p output
 
 # 声明环境变量（生产环境中可以通过Docker run参数或.env文件覆盖）
 # API密钥环境变量
