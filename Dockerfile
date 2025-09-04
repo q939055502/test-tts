@@ -14,8 +14,8 @@ COPY voice_samples .
 COPY voice_list.txt .
 COPY templates/ ./templates/
 
-# 安装依赖包
-RUN pip install --no-cache-dir -r requirements.txt
+# 安装依赖包 - 使用清华大学PyPI镜像源加速安装
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 
 # 创建语音列表目录
 RUN mkdir -p "语音列表" && mkdir -p output

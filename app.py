@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file, abort, render_template
+from flask import Flask, request, jsonify, send_file, abort, render_template, send_from_directory
 import os
 from tts_service import TTSService
 from flask import Response
@@ -7,10 +7,21 @@ from functools import wraps
 # 导入日志配置
 from logger_config import logger, access_logger, tts_logger
 
+# 尝试导入并配置CORS
+try:
+    from flask_cors import CORS
+    CORS_INSTALLED = True
+except ImportError:
+    CORS_INSTALLED = False
+
 app = Flask(__name__)
 # 初始化TTS服务
 tts_service = TTSService()
 
+# 如果安装了flask_cors，则配置CORS
+if CORS_INSTALLED:
+    CORS(app, origins="*")
+    logger.info("已启用CORS支持")
 # 安全配置
 # 从环境变量读取配置，如果环境变量不存在则使用默认值
 # API密钥 - 可以使用generate_api_key()生成一个新的密钥
@@ -19,6 +30,18 @@ API_KEY = os.environ.get("API_KEY", "4b7c9e2a-3d8f-5a1b-6c4d-7e8f9a0b1c2d")  # �
 # 环境变量格式：逗号分隔的IP列表，如"192.168.1.100,127.0.0.1"
 allowed_ips_str = os.environ.get("ALLOWED_IPS", "")
 ALLOWED_IPS = [ip.strip() for ip in allowed_ips_str.split(",")] if allowed_ips_str else []
+
+# 配置文件上传目录
+UPLOAD_FOLDER = 'output'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# 确保上传目录存在
+if not os.path.exists(UPLOAD_FOLDER):
+    try:
+        os.makedirs(UPLOAD_FOLDER)
+        logger.info(f"创建上传目录: {UPLOAD_FOLDER}")
+    except Exception as e:
+        logger.error(f"创建上传目录失败: {str(e)}")
 
 # 将异步函数转换为同步函数的装饰器
 def async_to_sync(f):
@@ -42,8 +65,8 @@ def log_request_middleware():
 # 身份验证中间件
 def auth_middleware():
     """身份验证中间件，用于保护敏感接口"""
-    # 允许访问首页、健康检查接口和必要的静态资源
-    if request.path in ['/','/api/voice_list', '/api/voice_sample', '/favicon.ico']:
+    # 允许访问首页、健康检查接口、必要的静态资源和生成的音频文件
+    if request.path in ['/','/api/voice_list', '/api/voice_sample', '/favicon.ico'] or request.path.startswith('/static/audio/'):
         return
     
     # IP白名单验证
@@ -61,6 +84,15 @@ def auth_middleware():
     elif api_key != API_KEY:
         logger.warning(f"API密钥错误: {request.remote_addr} 使用无效密钥访问 {request.path}")
         abort(401, description="API密钥错误")
+
+# 静态文件路由 - 允许访问output目录中的音频文件
+@app.route('/static/audio/<filename>')
+def serve_audio(filename):
+    """提供音频文件的静态访问"""
+    try:
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename, mimetype='audio/mpeg')
+    except FileNotFoundError:
+        abort(404)
 
 # 注册中间件
 app.before_request(log_request_middleware)
@@ -197,19 +229,21 @@ def generate_tts():
         result = tts_service.generate_speech_sync(text, voice, rate)
         
         if result['success']:
-            # 检查是否需要直接返回文件
-            return_json = request.args.get('return_json', 'false').lower() == 'true'
+            # 检查是否需要直接返回文件 - 同时支持从查询参数和请求体中获取
+            return_json = request.args.get('return_json', 'false').lower() == 'true' or data.get('return_json', False)
             logger.info(f"语音生成成功: {result['file_name']}")
             
             if return_json:
-                # 返回JSON结果
+                # 返回JSON结果，包含可访问的文件URL
+                file_url = f"{request.host_url}static/audio/{result['file_name']}"
                 return jsonify({
                     "success": True,
                     "message": "语音生成成功",
                     "file_name": result['file_name'],
                     "voice": voice,
                     "rate": rate,
-                    "file_path": result['file_path']
+                    "file_path": result['file_path'],
+                    "file_url": file_url
                 })
             else:
                 # 直接返回语音文件
