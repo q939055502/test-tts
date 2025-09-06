@@ -1,7 +1,7 @@
 import logging
 import os
 from logging.handlers import RotatingFileHandler
-
+from datetime import datetime, timezone
 # 创建日志目录
 LOG_DIR = 'logs'
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -13,6 +13,11 @@ ERROR_LOG_FILE = os.path.join(LOG_DIR, 'tts_service_error.log')
 # 配置基本日志格式
 LOG_FORMAT = '%(asctime)s - %(levelname)s - [%(module)s:%(funcName)s:%(lineno)d] - %(message)s'
 DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
+
+def custom_time(*args):
+    return datetime.now(timezone.utc).astimezone().timetuple()
+formatter = logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT)
+formatter.converter = custom_time  # 强制使用本地时区
 
 # 创建logger
 def setup_logger(name=__name__, log_level=logging.INFO):

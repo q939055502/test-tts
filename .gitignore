@@ -36,9 +36,6 @@ dist/
 .env.test.local
 .env.production.local
 
-# 忽略语音文件（可选，如果不需要提交生成的语音）
-*.mp3
-
 # 忽略IDE配置文件
 .vscode/
 .idea/

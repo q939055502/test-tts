@@ -40,7 +40,14 @@
 2. **运行Docker容器**
 
    ```bash
-   docker run -d -p 5001:5001 --name edge-tts-container --env API_KEY="4b7c9e2a-3d8f-5a1b-6c4d-7e8f9a0b1c2d" edge-tts-api
+   docker run -d \
+  -p 5001:5001 \
+  -v /etc/timezone:/etc/timezone:ro \
+  -v /etc/localtime:/etc/localtime:ro \
+  --name edge-tts-container \
+  --env API_KEY="4b7c9e2a-3d8f-5a1b-6c4d-7e8f9a0b1c2d"\
+  edge-tts-api \
+  python app.py
    ```
 
 3. **带文件挂载运行**
