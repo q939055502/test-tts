@@ -6,6 +6,7 @@ __pycache__/
 # 忽略虚拟环境
 venv/
 ENV/
+.venv/
 
 # 忽略操作系统文件
 .DS_Store
