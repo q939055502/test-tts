@@ -44,6 +44,9 @@ dist/
 *.swo
 *~
 
+# 忽略输出文件目录
+output/
+
 # 忽略Docker相关临时文件
 .dockerignore
 Dockerfile~
