@@ -418,6 +418,114 @@ def get_voice_sample():
         logger.error(f"处理语音样本请求时发生错误: {str(e)}")
         abort(500, description=f"处理请求时发生错误: {str(e)}")
 
+@app.route('/api/tts/batch', methods=['POST'])
+def generate_tts_batch():
+    """批量生成语音接口
+    
+    请求体参数:
+        Array: 包含多个语音生成任务的数组，每个任务包含：
+            text (str): 要转换为语音的文本（必需）
+            voice (str): 语音模型（可选，默认为zh-CN-YunxiNeural）
+            rate (str): 语速（可选，默认为+0%）
+    
+    返回:
+        JSON: 包含所有生成任务结果的数组，每个结果包含link和msg字段
+    """
+    try:
+        # 获取请求参数
+        data = request.get_json()
+        
+        # 验证必需参数
+        if not data or not isinstance(data, list):
+            logger.warning("批量语音生成请求参数不是有效的数组")
+            return jsonify({
+                "code": 400,
+                "data": [],
+                "msg": "请求参数必须是有效的数组"
+            })
+        
+        # 记录请求信息
+        logger.info(f"批量语音生成请求: 共 {len(data)} 个任务")
+        
+        # 处理每个语音生成任务
+        results = []
+        for i, task in enumerate(data):
+            try:
+                # 验证任务必需参数
+                if not task or 'text' not in task:
+                    logger.warning(f"批量任务 {i+1} 缺少必需参数: text")
+                    results.append({
+                        "code": 400,
+                        "data": None,
+                        "msg": "缺少必需参数: text"
+                    })
+                    continue
+                
+                # 获取任务参数值，设置默认值
+                text = task['text']
+                voice = task.get('voice', 'zh-CN-YunxiNeural')
+                rate = task.get('rate', '+0%')
+                
+                # 验证文本长度
+                if len(text.strip()) == 0:
+                    logger.warning(f"批量任务 {i+1} 文本为空")
+                    results.append({
+                        "code": 400,
+                        "data": None,
+                        "msg": "文本不能为空"
+                    })
+                    continue
+                
+                # 验证语音模型
+                if not tts_service.validate_voice(voice):
+                    logger.warning(f"批量任务 {i+1} 不支持的语音模型: {voice}")
+                    results.append({
+                        "code": 400,
+                        "data": None,
+                        "msg": f"不支持的语音模型: {voice}"
+                    })
+                    continue
+                
+                # 生成语音
+                result = tts_service.generate_speech_sync(text, voice, rate)
+                
+                if result['success']:
+                    logger.info(f"批量任务 {i+1} 语音生成成功: {result['file_name']}")
+                    # 生成文件URL
+                    file_url = f"{request.host_url}static/audio/{result['file_name']}"
+                    results.append({
+                        "code": 0,
+                        "data": {
+                            "link": file_url
+                        },
+                        "msg": "success"
+                    })
+                else:
+                    logger.error(f"批量任务 {i+1} 语音生成失败: {result['message']}")
+                    results.append({
+                        "code": 500,
+                        "data": None,
+                        "msg": result['message']
+                    })
+            except Exception as e:
+                logger.error(f"处理批量任务 {i+1} 时发生错误: {str(e)}")
+                results.append({
+                    "code": 500,
+                    "data": None,
+                    "msg": f"处理请求时发生错误: {str(e)}"
+                })
+        
+        # 返回所有任务的结果
+        return jsonify(results)
+    except Exception as e:
+        logger.error(f"处理批量语音生成请求时发生错误: {str(e)}")
+        return jsonify({
+            "code": 500,
+            "data": [],
+            "msg": f"处理请求时发生错误: {str(e)}"
+        })
+
+
 if __name__ == "__main__":
     # 在开发环境中运行Flask应用
     # 注意：生产环境中应使用WSGI服务器如Gunicorn或uWSGI
