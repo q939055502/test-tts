@@ -10,7 +10,6 @@
 - 支持多种中文语音模型
 - 可自定义语速、音调和音量
 - 服务层和接口层分离
-- Docker容器化部署
 - 支持流式语音输出
 - 支持SSML高级语音控制
 
@@ -20,94 +19,12 @@
 ├── app.py                # Flask API接口层
 ├── tts_service.py        # TTS语音生成服务层
 ├── requirements.txt      # 项目依赖
-├── Dockerfile            # Docker构建配置
 ├── .gitignore            # Git忽略文件配置
-└── 语音列表/              # 生成的语音文件保存目录
+├── voice_samples/        # 语音样本文件目录
+└── output/               # 生成的语音文件保存目录
 ```
 
 ## 四、快速开始
-
-### 手动使用Docker运行
-
-直接使用Docker命令构建和运行容器：
-
-1. **构建Docker镜像**
-
-   ```bash
-   docker build -t edge-tts-api .
-   ```
-
-2. **运行Docker容器**
-
-   ```bash
-   docker run -d \
-  -p 5001:5001 \
-  -v /etc/timezone:/etc/timezone:ro \
-  -v /etc/localtime:/etc/localtime:ro \
-  --name edge-tts-container \
-  --env API_KEY="4b7c9e2a-3d8f-5a1b-6c4d-7e8f9a0b1c2d"\
-  edge-tts-api \
-  python app.py
-   ```
-
-3. **带文件挂载运行**
-
-   ```bash
-   docker run -d -p 5001:5001 -v ${PWD}/output:/app/output --name edge-tts-container edge-tts-api
-   ```
-
-4. **查看容器运行状态**
-
-   ```bash
-   docker ps -a | grep edge-tts-container
-   ```
-
-5. **停止容器**
-
-   ```bash
-   docker stop edge-tts-container
-   ```
-
-6. **删除容器**
-
-   ```bash
-   docker rm edge-tts-container
-   ```
-
-7. **删除镜像**
-
-   ```bash
-   docker rmi edge-tts-api
-   ```
-
-8. **查看容器日志**
-
-   ```bash
-   docker logs edge-tts-container
-   # 实时查看日志
-   docker logs -f edge-tts-container
-   ```
-
-### 配置参数
-
-您可以在运行容器时通过环境变量自定义以下参数：
-
-- **API_KEY**: API密钥，建议在生产环境中修改为更安全的值
-- **ALLOWED_IPS**: IP白名单，格式为逗号分隔的IP列表，留空表示不限制
-
-例如：
-
-```bash
-# 自定义API密钥和IP白名单
-docker run -d -p 5001:5001 --name edge-tts-container \
-  --env API_KEY="your-secure-api-key" \
-  --env ALLOWED_IPS="192.168.1.100,172.17.0.1" \
-  edge-tts-api
-
-# 修改主机端口映射
-docker run -d -p 8080:5000 --name edge-tts-container \
-  edge-tts-api
-```
 
 ### 直接本地运行
 
@@ -137,23 +54,7 @@ API服务包含以下安全机制，确保服务的安全访问：
 
 可配置IP白名单，限制只有特定IP地址才能访问API。默认不限制IP（`ALLOWED_IPS = []`）。
 
-#### Docker容器中的localhost注意事项
 
-在Docker容器环境中，有一个重要的特殊情况需要注意：
-
-- 在容器内部，`localhost`（127.0.0.1）指的是容器本身，而不是宿主机的localhost
-- 从宿主机访问容器时，容器看到的是宿主机在Docker网络中的IP地址（通常是172.17.0.1或类似地址）
-
-#### 正确配置方法
-
-1. **在Dockerfile中**：
-   - 不要在Dockerfile中设置localhost作为允许的IP，因为这不会允许从宿主机访问
-   - 保持默认值`ENV ALLOWED_IPS=`不变，这样容器默认不限制IP访问
-
-2. **运行容器时**：
-   - 通过`--env`参数动态设置允许的IP列表
-   - 示例：`docker run -d -p 5001:5001 --name tts-container --env ALLOWED_IPS="192.168.1.100,172.17.0.1" tts-api`
-   - 其中`172.17.0.1`通常是宿主机在Docker网络中的IP地址（根据你的网络配置可能有所不同）
 
 ### 配置方法
 
@@ -213,25 +114,25 @@ API服务包含以下安全机制，确保服务的安全访问：
 ### 获取语音列表
 
 ```bash
-curl http://localhost:5000/api/voices
+curl http://localhost:5001/api/voices
 ```
 
 ### 生成语音（返回文件）
 
 ```bash
-curl -X POST -H "Content-Type: application/json" -d '{"text":"你好，这是一段测试文本"}' http://localhost:5000/api/tts --output output.mp3
+curl -X POST -H "Content-Type: application/json" -d '{"text":"你好，这是一段测试文本"}' http://localhost:5001/api/tts --output output.mp3
 ```
 
 ### 生成语音（返回JSON）
 
 ```bash
-curl -X POST -H "Content-Type: application/json" -d '{"text":"你好，这是一段测试文本", "voice":"zh-CN-YunyangNeural", "rate":"+10%"}' http://localhost:5000/api/tts?return_json=true
+curl -X POST -H "Content-Type: application/json" -d '{"text":"你好，这是一段测试文本", "voice":"zh-CN-YunyangNeural", "rate":"+10%"}' http://localhost:5001/api/tts?return_json=true
 ```
 
 ### 使用API密钥认证
 
 ```bash
-curl -X POST http://localhost:5000/api/tts -H "X-API-Key: 4b7c9e2a-3d8f-5a1b-6c4d-7e8f9a0b1c2d" -H "Content-Type: application/json" -d '{"text": "你好，这是一段测试文本"}'
+curl -X POST http://localhost:5001/api/tts -H "X-API-Key: 4b7c9e2a-3d8f-5a1b-6c4d-7e8f9a0b1c2d" -H "Content-Type: application/json" -d '{"text": "你好，这是一段测试文本"}'
 ```
 
 ## 八、Edge-TTS 库详解
@@ -396,16 +297,15 @@ asyncio.run(ssml_example())
 ## 十、常见问题
 
 1. **服务启动后无法访问**
-   - 检查Docker端口映射是否正确
-   - 确认容器是否正在运行（使用`docker ps`命令）
+   - 检查服务绑定的IP和端口是否正确
+   - 确认防火墙设置是否允许相应端口的访问
 
 2. **生成语音失败**
    - 检查网络连接是否正常（Edge-TTS需要连接Microsoft服务器）
    - 验证语音模型是否正确
 
 3. **如何修改服务端口**
-   - 修改app.py中的`app.run(host='0.0.0.0', port=5000, debug=True)`语句中的port参数
-   - 同时更新Dockerfile中的`EXPOSE`指令和运行容器时的端口映射
+   - 修改app.py中的`app.run(host='0.0.0.0', port=5001, debug=True)`语句中的port参数
 
 4. **生成的音频文件没有声音**
    - 检查文本内容是否为空，或尝试调整音量参数
@@ -417,7 +317,6 @@ asyncio.run(ssml_example())
 
 - 当前配置适用于开发环境，生产环境建议使用WSGI服务器如Gunicorn或uWSGI
 - 生产环境应关闭debug模式
-- 长时间运行可能需要考虑容器资源限制和自动重启策略
 - 根据项目的 requirements.txt，当前版本要求 edge-tts>=6.1.4，并且支持 Python 3.9 或更高版本
 
 ## 十二、应用场景
